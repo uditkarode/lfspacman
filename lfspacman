@@ -1,0 +1,74 @@
+#! /bin/bash
+
+Y='\033[0;33m'
+N='\033[0m'
+
+show_help() {
+	echo -e "${Y}LFS Pacman v1${N}: open source at github.com/uditkarode/lfspacman"
+}
+
+show_info(){
+	if [ "$2" = "nonew" ]; then
+		echo -e -n "${Y}lfspacman${N}: $1 "
+	else
+		echo -e "${Y}lfspacman${N}: $1"
+	fi
+}
+
+case "$#" in 
+	"0")
+		show_help
+		;;
+
+	"2")
+		case "$1" in
+			"-S")
+				show_info "attempting to install package $2..." && echo
+
+				# obtain dependency list
+				show_info "obtaining dependencies..." nonew
+				IFS=' ' read -r -a deps <<< "`pacman -Si $2 | grep -i depends | cut -d: -f2`"
+				echo done
+
+				# invalidate dependencies
+				show_info "cleaning dependency list..." nonew
+				# make an array to store actual dependencies
+				declare -a actualdeps
+				for dep in "${deps[@]}"; do
+				     	# remove version checks
+				     	dep="`echo "$dep" | cut -d'>' -f1`"
+				     	# check if dependency exists
+				     	if [ -z "`cat /etc/lfspacman.conf | grep -i $dep`" ]; then
+				     		actualdeps+=("$dep")
+				     	fi
+				done
+				echo done
+
+				# ask for confirmation
+				echo && show_info "required dependency list generated:"
+				echo -en "\t" && echo ${actualdeps[*]}
+				echo && echo -n "Continue? [Y/n]: " && read -n1 answer
+				
+				# install/exit
+				if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+					echo && show_info "installing dependencies of $2" && echo
+					for dep in "${actualdeps[@]}"; do
+						echo "installing $dep..."
+						pacman -Sdd --noconfirm $dep
+					done
+					echo && show_info "dependency installation successful"
+					echo && show_info "installing $2..."
+					pacman -Sdd --noconfirm $2
+				fi
+				;;
+
+			*)
+				pacman $@
+				;;
+		esac
+		;;
+
+	*)
+		pacman $@
+		;;
+esac
